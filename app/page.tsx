@@ -24,9 +24,22 @@ export default function HomePage() {
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
           Satisfy your curiosity, instantly.
         </h1>
-        <p className="text-lg text-gray-500">
+        <p className="text-lg text-gray-500 mb-8">
           Type any question — get a clear, simple scientific explanation.
         </p>
+        <div className="flex gap-2 max-w-xl mx-auto">
+          <input
+            type="text"
+            placeholder="Type your curiosity here..."
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+          <button
+            type="button"
+            className="bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-lg hover:bg-gray-700"
+          >
+            Ask
+          </button>
+        </div>
       </section>
 
       <section>
