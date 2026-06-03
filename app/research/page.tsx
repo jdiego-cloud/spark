@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import CompetitorTable from '@/components/CompetitorTable'
 import { benchmarks } from '@/data/benchmarks'
 import { risks } from '@/data/risks'
+import { getSupabase } from '@/lib/supabase'
 
 export const metadata: Metadata = {
   title: 'Research — Spark',
@@ -19,6 +20,20 @@ const levelColor: Record<string, string> = {
 }
 
 export default async function ResearchPage() {
+  // Log every page visit to Supabase — proves the DB write path works.
+  // getSupabase() returns null when env vars are absent (e.g. during build),
+  // so this is safely skipped in that case.
+  try {
+    const db = getSupabase()
+    if (db) {
+      await db
+        .from('research_records')
+        .insert({ page_version: 'week-2', notes: 'research page loaded' })
+    }
+  } catch (err) {
+    console.error('[research] Supabase insert failed:', err)
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-16 space-y-20">
 
