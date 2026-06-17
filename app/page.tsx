@@ -2,10 +2,6 @@ import Link from 'next/link'
 
 const roadmapFeatures = [
   {
-    title: 'AI Explanations',
-    description: 'Get clear, simple scientific explanations powered by AI.',
-  },
-  {
     title: 'Save Your Questions',
     description: "Bookmark questions you've asked to revisit anytime.",
   },
@@ -56,6 +52,20 @@ export default function HomePage() {
             <p className="font-semibold text-gray-900">See the Research →</p>
             <p className="text-sm text-gray-500 mt-0.5">
               Competitive landscape, global benchmarks, and risk analysis
+            </p>
+          </div>
+        </Link>
+        <Link
+          href="/pricing"
+          className="flex items-center justify-between border border-gray-200 rounded-lg px-6 py-5 hover:bg-gray-50 group mt-4"
+        >
+          <div>
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
+              Product &amp; pricing
+            </p>
+            <p className="font-semibold text-gray-900">See Pricing →</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Tiers, features, and a live revenue simulator
             </p>
           </div>
         </Link>
