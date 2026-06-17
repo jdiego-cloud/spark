@@ -1,3 +1,7 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 const roadmapFeatures = [
@@ -16,6 +20,14 @@ const roadmapFeatures = [
 ]
 
 export default function HomePage() {
+  const router = useRouter()
+  const [curiosity, setCuriosity] = useState('')
+
+  function handleAsk() {
+    if (!curiosity.trim()) return
+    router.push(`/core?q=${encodeURIComponent(curiosity.trim())}`)
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-16">
       <section className="text-center mb-24">
@@ -28,11 +40,15 @@ export default function HomePage() {
         <div className="flex gap-2 max-w-xl mx-auto">
           <input
             type="text"
+            value={curiosity}
+            onChange={(e) => setCuriosity(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
             placeholder="Type your curiosity here..."
             className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
           <button
             type="button"
+            onClick={handleAsk}
             className="bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-lg hover:bg-gray-700"
           >
             Ask

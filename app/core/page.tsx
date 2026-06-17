@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
 
 type SavedOutput = {
@@ -11,7 +12,8 @@ type SavedOutput = {
 }
 
 export default function CorePage() {
-  const [question, setQuestion] = useState('')
+  const searchParams = useSearchParams()
+  const [question, setQuestion] = useState(() => searchParams.get('q') ?? '')
   const [answer, setAnswer] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
