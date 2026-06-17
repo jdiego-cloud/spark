@@ -14,6 +14,12 @@ export default function Navbar() {
           <Link href="/core" className="text-sm text-gray-600 hover:text-gray-900">
             Core
           </Link>
+          <Link href="/product" className="text-sm text-gray-600 hover:text-gray-900">
+            Product
+          </Link>
+          <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900">
+            Pricing
+          </Link>
           <Link href="/docs" className="text-sm text-gray-600 hover:text-gray-900">
             Docs
           </Link>
