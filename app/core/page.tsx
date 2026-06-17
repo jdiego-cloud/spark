@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
 
@@ -11,7 +11,7 @@ type SavedOutput = {
   answer: string
 }
 
-export default function CorePage() {
+function CorePageInner() {
   const searchParams = useSearchParams()
   const [question, setQuestion] = useState(() => searchParams.get('q') ?? '')
   const [answer, setAnswer] = useState('')
@@ -154,5 +154,13 @@ export default function CorePage() {
         </section>
       )}
     </div>
+  )
+}
+
+export default function CorePage() {
+  return (
+    <Suspense>
+      <CorePageInner />
+    </Suspense>
   )
 }
