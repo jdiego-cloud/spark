@@ -33,7 +33,7 @@ function CopyButton({ text }: { text: string }) {
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(normalizeNewlines(text))
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
