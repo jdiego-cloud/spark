@@ -24,6 +24,10 @@ type ABCounts = {
   B: { impressions: number; clicks: number }
 }
 
+function normalizeNewlines(text: string) {
+  return text.replace(/\\n/g, '\n')
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
 
@@ -128,7 +132,7 @@ export default function MarketingPage() {
             {brandNotes.map((note) => (
               <div key={note.id} className="border border-gray-200 rounded-lg p-6">
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {note.content}
+                  {normalizeNewlines(note.content)}
                 </p>
               </div>
             ))}
@@ -144,7 +148,7 @@ export default function MarketingPage() {
             {personas.map((persona) => (
               <div key={persona.id} className="border border-gray-200 rounded-lg p-6">
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {persona.content}
+                  {normalizeNewlines(persona.content)}
                 </p>
               </div>
             ))}
@@ -166,7 +170,7 @@ export default function MarketingPage() {
                     </p>
                   )}
                   <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {post.content}
+                    {normalizeNewlines(post.content)}
                   </p>
                 </div>
                 <CopyButton text={post.content} />
@@ -190,7 +194,7 @@ export default function MarketingPage() {
                     </p>
                   )}
                   <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {script.content}
+                    {normalizeNewlines(script.content)}
                   </p>
                 </div>
                 <CopyButton text={script.content} />
@@ -211,7 +215,7 @@ export default function MarketingPage() {
                   Day {entry.day_number}
                 </p>
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {entry.content}
+                  {normalizeNewlines(entry.content)}
                 </p>
               </div>
             ))}
