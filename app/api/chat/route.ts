@@ -1,3 +1,4 @@
+// ALTER TABLE chat_sessions ADD COLUMN was_flagged boolean NOT NULL DEFAULT false;
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getSupabase } from '@/lib/supabase'
@@ -74,6 +75,13 @@ export async function POST(request: NextRequest) {
         : "I can't help with that. I'm built for science curiosity, though — want to ask about something else?"
 
       if (db) {
+        await db.from('chat_sessions').insert({
+          session_id: sessionId,
+          intake_topic: topic,
+          intake_confusion: confusion,
+          intake_depth: depth,
+          was_flagged: true,
+        })
         await db.from('chat_messages').insert({
           session_id: sessionId,
           role: 'bot',
@@ -96,15 +104,14 @@ export async function POST(request: NextRequest) {
       const result = await model.generateContent(prompt)
       const answer = result.response.text()
 
-      // Persist chat_sessions row
       if (db) {
         await db.from('chat_sessions').insert({
           session_id: sessionId,
           intake_topic: topic,
           intake_confusion: confusion,
           intake_depth: depth,
+          was_flagged: false,
         })
-        // Save bot message
         await db.from('chat_messages').insert({
           session_id: sessionId,
           role: 'bot',
@@ -115,9 +122,17 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ answer, flagged: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.error('[/api/chat] Gemini intake error:', message)
-      return NextResponse.json({ error: message }, { status: 500 })
+      const fallback = 'Something went wrong generating that explanation. Please try again in a moment.'
+      console.error('[/api/chat] Gemini intake error:', err)
+      if (db) {
+        await db.from('chat_messages').insert({
+          session_id: sessionId,
+          role: 'bot',
+          content: fallback,
+          is_flagged: false,
+        })
+      }
+      return NextResponse.json({ answer: fallback, flagged: false })
     }
   }
 
@@ -189,9 +204,17 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ answer, flagged: false })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.error('[/api/chat] Gemini followup error:', message)
-      return NextResponse.json({ error: message }, { status: 500 })
+      const fallback = 'Something went wrong generating that explanation. Please try again in a moment.'
+      console.error('[/api/chat] Gemini followup error:', err)
+      if (db) {
+        await db.from('chat_messages').insert({
+          session_id: sessionId,
+          role: 'bot',
+          content: fallback,
+          is_flagged: false,
+        })
+      }
+      return NextResponse.json({ answer: fallback, flagged: false })
     }
   }
 
