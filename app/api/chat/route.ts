@@ -161,13 +161,17 @@ export async function POST(request: NextRequest) {
       systemInstruction: SYSTEM_PROMPT,
     })
 
-    // Convert history to Gemini format (exclude intake bot questions)
+    // Convert history to Gemini format; drop leading model turns because
+    // startChat() requires the first entry to have role 'user'.
     const geminiHistory = (history ?? [])
       .filter((m) => m.role === 'user' || m.role === 'bot')
       .map((m) => ({
         role: m.role === 'user' ? ('user' as const) : ('model' as const),
         parts: [{ text: m.content }],
       }))
+    while (geminiHistory.length > 0 && geminiHistory[0].role === 'model') {
+      geminiHistory.shift()
+    }
 
     try {
       const chat = model.startChat({ history: geminiHistory })
