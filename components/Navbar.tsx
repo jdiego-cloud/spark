@@ -23,6 +23,9 @@ export default function Navbar() {
           <Link href="/marketing" className="text-sm text-gray-600 hover:text-gray-900">
             Marketing
           </Link>
+          <Link href="/chat" className="text-sm text-gray-600 hover:text-gray-900">
+            Chat
+          </Link>
           <Link href="/docs" className="text-sm text-gray-600 hover:text-gray-900">
             Docs
           </Link>
