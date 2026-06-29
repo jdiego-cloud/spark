@@ -23,6 +23,12 @@ type RequestBody = {
   userMessage?: string
 }
 
+const QUICK_KEYWORDS = ['quick', 'short', 'brief', 'fast', 'rápido', 'rapido', 'corta', 'corto', 'breve', 'resumida', 'resumido']
+function isQuickAnswer(depth: string): boolean {
+  const lower = depth.toLowerCase()
+  return QUICK_KEYWORDS.some(kw => lower.includes(kw))
+}
+
 async function classifySafety(genAI: GoogleGenerativeAI, text: string): Promise<boolean> {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
   const result = await model.generateContent(`${GUARD_PROMPT} "${text}"`)
@@ -94,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build the explanation prompt
-    const prompt = `A curious person wants to understand: "${topic}". The part that's confusing or unclear to them is: "${confusion}". They want: ${depth === 'Quick answer' ? 'a brief, quick answer' : 'a full, thorough explanation'}. Please explain this clearly.`
+    const prompt = `A curious person wants to understand: "${topic}". The part that's confusing or unclear to them is: "${confusion}". They want: ${isQuickAnswer(depth) ? 'a brief, quick answer' : 'a full, thorough explanation'}. Please explain this clearly.`
 
     try {
       const model = genAI.getGenerativeModel({
