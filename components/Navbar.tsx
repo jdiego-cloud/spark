@@ -29,6 +29,12 @@ export default function Navbar() {
           <Link href="/docs" className="text-sm text-gray-600 hover:text-gray-900">
             Docs
           </Link>
+          <Link href="/demo" className="text-sm text-gray-600 hover:text-gray-900">
+            Demo
+          </Link>
+          <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">
+            Dashboard
+          </Link>
         </div>
       </div>
     </nav>
