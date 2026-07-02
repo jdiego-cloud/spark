@@ -3,10 +3,39 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getSupabase } from '@/lib/supabase'
 
+type ResponseLanguage = 'en' | 'es'
+
+type StructuredAnswer = {
+  explanation: string
+  analogy?: string
+  confidence_level?: string
+  confidence_reason?: string
+  language?: ResponseLanguage
+}
+
+const LABELS = {
+  en: { analogy: "Here's an analogy", confidence: 'Confidence level', high: 'High', medium: 'Medium', low: 'Low' },
+  es: { analogy: 'Piénsalo así', confidence: 'Qué tan seguro estoy', high: 'Alta', medium: 'Media', low: 'Baja' },
+} as const
+
+function getLang(lang: string | null | undefined): ResponseLanguage {
+  return lang === 'es' ? 'es' : 'en'
+}
+
+function getConfidenceLabel(level: string, lang: ResponseLanguage): string {
+  const l = level.toLowerCase()
+  const labels = LABELS[lang]
+  if (l === 'high' || l === 'alta') return labels.high
+  if (l === 'medium' || l === 'media') return labels.medium
+  if (l === 'low' || l === 'baja') return labels.low
+  return level
+}
+
 type Message = {
   id: string
   role: 'bot' | 'user'
   content: string
+  structured?: StructuredAnswer
   isMainExplanation?: boolean
 }
 
@@ -16,7 +45,6 @@ const INTAKE_QUESTIONS = [
   'Quick answer or the full explanation?',
 ]
 
-// Inline ThumbsUp/Down SVG icons — no external deps needed
 function ThumbsUp({ filled }: { filled: boolean }) {
   return (
     <svg
@@ -53,21 +81,53 @@ function ThumbsDown({ filled }: { filled: boolean }) {
   )
 }
 
+const CONFIDENCE_DOT: Record<string, string> = {
+  high: 'bg-gray-700',
+  medium: 'bg-gray-400',
+  low: 'bg-gray-300',
+  Alta: 'bg-gray-700',
+  Media: 'bg-gray-400',
+  Baja: 'bg-gray-300',
+}
+
+function StructuredBotBubble({ data }: { data: StructuredAnswer }) {
+  const lang = getLang(data.language)
+  const labels = LABELS[lang]
+  return (
+    <div className="flex flex-col gap-3 text-sm leading-relaxed text-gray-900">
+      <p>{data.explanation}</p>
+      {data.analogy && (
+        <div className="border-l-2 border-gray-300 pl-3 text-gray-600 italic text-xs leading-relaxed">
+          <span className="not-italic font-semibold text-gray-400 uppercase text-[10px] tracking-wide block mb-0.5">{labels.analogy}</span>
+          {data.analogy}
+        </div>
+      )}
+      {data.confidence_level && (
+        <div className="flex items-center gap-1.5 pt-1">
+          <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${CONFIDENCE_DOT[data.confidence_level] ?? 'bg-gray-300'}`} />
+          <span className="text-[11px] text-gray-400">
+            <span className="font-semibold text-gray-500">{labels.confidence}: {getConfidenceLabel(data.confidence_level, lang)}</span>
+            {data.confidence_reason ? ` — ${data.confidence_reason}` : ''}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>('')
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [intakeStep, setIntakeStep] = useState(0) // 0: waiting for Q1 answer, 1: Q2, 2: Q3, 3: done
+  const [intakeStep, setIntakeStep] = useState(0)
   const [intakeAnswers, setIntakeAnswers] = useState<string[]>([])
   const [rating, setRating] = useState<'up' | 'down' | null>(null)
   const [mainExplMsgId, setMainExplMsgId] = useState<string | null>(null)
-  // history for Gemini context: only bot explanation messages + user followups
   const geminiHistory = useRef<{ role: 'user' | 'bot'; content: string }[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Initialize session
   useEffect(() => {
     const KEY = 'spark_chat_session'
     let id = localStorage.getItem(KEY)
@@ -77,7 +137,6 @@ export default function ChatPage() {
     }
     setSessionId(id)
 
-    // Show first intake question
     setMessages([
       {
         id: crypto.randomUUID(),
@@ -87,7 +146,6 @@ export default function ChatPage() {
     ])
   }, [])
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -118,48 +176,44 @@ export default function ChatPage() {
     setInput('')
     setLoading(true)
 
-    // Add user bubble
     addMessage({ role: 'user', content: text })
     await saveUserMessage(text)
 
     if (intakeStep < 3) {
-      // Still in intake flow
       const newAnswers = [...intakeAnswers, text]
       setIntakeAnswers(newAnswers)
       const nextStep = intakeStep + 1
 
       if (nextStep < 3) {
-        // Show next intake question
         addMessage({ role: 'bot', content: INTAKE_QUESTIONS[nextStep] })
         setIntakeStep(nextStep)
         setLoading(false)
       } else {
-        // All 3 answers collected — call intake API
         setIntakeStep(3)
         const [topic, confusion, depth] = newAnswers
         try {
           const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'intake',
-              sessionId,
-              topic,
-              confusion,
-              depth,
-            }),
+            body: JSON.stringify({ type: 'intake', sessionId, topic, confusion, depth }),
           })
           const data = await res.json()
           if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
+
+          const explanation = data.explanation ?? data.answer ?? ''
+          const structured: StructuredAnswer | undefined = data.explanation
+            ? { explanation: data.explanation, analogy: data.analogy, confidence_level: data.confidence_level, confidence_reason: data.confidence_reason, language: data.language ?? 'en' }
+            : undefined
+
           const botMsg = addMessage({
             role: 'bot',
-            content: data.answer,
+            content: explanation,
+            structured,
             isMainExplanation: !data.flagged,
           })
           if (!data.flagged) {
             setMainExplMsgId(botMsg.id)
-            // Seed Gemini history with the explanation
-            geminiHistory.current = [{ role: 'bot', content: data.answer }]
+            geminiHistory.current = [{ role: 'bot', content: explanation }]
           }
         } catch (err) {
           addMessage({
@@ -171,27 +225,24 @@ export default function ChatPage() {
         }
       }
     } else {
-      // Follow-up turn
       geminiHistory.current = [...geminiHistory.current, { role: 'user', content: text }]
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'followup',
-            sessionId,
-            history: geminiHistory.current,
-            userMessage: text,
-          }),
+          body: JSON.stringify({ type: 'followup', sessionId, history: geminiHistory.current, userMessage: text }),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
-        addMessage({ role: 'bot', content: data.answer })
+
+        const explanation = data.explanation ?? data.answer ?? ''
+        const structured: StructuredAnswer | undefined = data.explanation
+          ? { explanation: data.explanation, analogy: data.analogy, confidence_level: data.confidence_level, confidence_reason: data.confidence_reason }
+          : undefined
+
+        addMessage({ role: 'bot', content: explanation, structured })
         if (!data.flagged) {
-          geminiHistory.current = [
-            ...geminiHistory.current,
-            { role: 'bot', content: data.answer },
-          ]
+          geminiHistory.current = [...geminiHistory.current, { role: 'bot', content: explanation }]
         }
       } catch (err) {
         addMessage({
@@ -212,38 +263,36 @@ export default function ChatPage() {
       setRating(newRating)
       const db = getSupabase()
       if (!db || !sessionId) return
-      await db
-        .from('chat_sessions')
-        .update({ rating: newRating })
-        .eq('session_id', sessionId)
+      await db.from('chat_sessions').update({ rating: newRating }).eq('session_id', sessionId)
     },
     [rating, sessionId],
   )
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] max-w-2xl mx-auto px-4">
-      {/* Header */}
       <div className="py-4 border-b border-gray-100 shrink-0">
         <h1 className="text-lg font-semibold text-gray-900">Spark Chat</h1>
         <p className="text-xs text-gray-400">Ask anything you&apos;re curious about</p>
       </div>
 
-      {/* Message thread */}
       <div className="flex-1 overflow-y-auto py-6 flex flex-col gap-4">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className="max-w-[80%]">
-              <div
-                className={
-                  msg.role === 'user'
-                    ? 'bg-gray-900 text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed'
-                    : 'bg-gray-100 text-gray-900 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed'
-                }
-              >
-                {msg.content}
-              </div>
+            <div className="max-w-[85%]">
+              {msg.role === 'user' ? (
+                <div className="bg-gray-900 text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
+                  {msg.content}
+                </div>
+              ) : msg.structured ? (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-5 py-4">
+                  <StructuredBotBubble data={msg.structured} />
+                </div>
+              ) : (
+                <div className="bg-gray-100 text-gray-900 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
+                  {msg.content}
+                </div>
+              )}
 
-              {/* Thumbs — only on the main explanation message */}
               {msg.isMainExplanation && msg.id === mainExplMsgId && (
                 <div className="flex gap-2 mt-2 pl-1">
                   <button
@@ -272,7 +321,6 @@ export default function ChatPage() {
           </div>
         ))}
 
-        {/* Typing indicator */}
         {loading && (
           <div className="flex justify-start">
             <div className="bg-gray-100 text-gray-400 rounded-2xl rounded-tl-sm px-4 py-3 text-sm">
@@ -284,7 +332,6 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar */}
       <div className="shrink-0 border-t border-gray-100 py-4">
         <div className="flex gap-2">
           <input

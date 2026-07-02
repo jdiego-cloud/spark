@@ -2,9 +2,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getSupabase } from '@/lib/supabase'
+import { parseStructuredAnswer } from '@/app/api/explain/route'
 
-const SYSTEM_PROMPT =
-  'You are Spark, a curiosity assistant. Explain things clearly in plain language anyone can understand. Avoid jargon. Keep answers focused and concise — 4 to 7 sentences. Respond in the same language the user writes in.'
+const SYSTEM_PROMPT = `You are Spark, a curiosity assistant. Explain things clearly in plain language anyone can understand. Avoid jargon.
+
+IMPORTANT: You MUST respond ONLY with a valid JSON object in exactly this format, with no markdown, no code blocks, no extra text before or after:
+{"explanation":"...","analogy":"...","confidence_level":"high","confidence_reason":"...","language":"en"}
+
+Rules:
+- explanation: clear focused explanation, 4 to 7 sentences
+- analogy: a concrete everyday analogy that makes the concept click (1-2 sentences)
+- confidence_level: exactly one of "high", "medium", or "low" — high if well-established science, medium if nuanced or context-dependent, low if speculative or actively debated
+- confidence_reason: a short phrase (under 15 words) explaining why you chose that confidence level
+- language: detect the language of the user's question — "en" for English, "es" for Spanish
+- Respond in the same language the user writes in`
 
 const GUARD_PROMPT =
   'You are a content safety classifier. Respond with exactly one word: SAFE or UNSAFE. Classify as UNSAFE only if the message explicitly requests instructions for creating weapons, explosives, dangerous chemicals, instructions for violence, or self-harm methods. Classify everything else — including off-topic, silly, or unrelated questions — as SAFE. Message to classify:'
@@ -63,7 +74,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'topic, confusion, and depth are required' }, { status: 400 })
     }
 
-    // Check each intake answer for safety
     const allText = `${topic} ${confusion} ${depth}`
     let isSafe = true
     let classifierErrored = false
@@ -99,7 +109,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ answer: refusal, flagged: !classifierErrored })
     }
 
-    // Build the explanation prompt
     const prompt = `A curious person wants to understand: "${topic}". The part that's confusing or unclear to them is: "${confusion}". They want: ${isQuickAnswer(depth) ? 'a brief, quick answer' : 'a full, thorough explanation'}. Please explain this clearly.`
 
     try {
@@ -108,7 +117,8 @@ export async function POST(request: NextRequest) {
         systemInstruction: SYSTEM_PROMPT,
       })
       const result = await model.generateContent(prompt)
-      const answer = result.response.text()
+      const raw = result.response.text()
+      const structured = parseStructuredAnswer(raw)
 
       if (db) {
         await db.from('chat_sessions').insert({
@@ -121,12 +131,16 @@ export async function POST(request: NextRequest) {
         await db.from('chat_messages').insert({
           session_id: sessionId,
           role: 'bot',
-          content: answer,
+          content: structured.explanation,
           is_flagged: false,
+          analogy: structured.analogy || null,
+          confidence_level: structured.confidence_level,
+          confidence_reason: structured.confidence_reason,
+          response_language: structured.language,
         })
       }
 
-      return NextResponse.json({ answer, flagged: false })
+      return NextResponse.json({ ...structured, flagged: false })
     } catch (err) {
       const fallback = 'Something went wrong generating that explanation. Please try again in a moment.'
       console.error('[/api/chat] Gemini intake error:', err)
@@ -148,7 +162,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'userMessage is required' }, { status: 400 })
     }
 
-    // Guardrail on user message
     let isSafe = true
     let classifierErrored = false
     try {
@@ -176,14 +189,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ answer: refusal, flagged: !classifierErrored })
     }
 
-    // Build conversation history for Gemini
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       systemInstruction: SYSTEM_PROMPT,
     })
 
-    // Convert history to Gemini format; drop leading model turns because
-    // startChat() requires the first entry to have role 'user'.
     const geminiHistory = (history ?? [])
       .filter((m) => m.role === 'user' || m.role === 'bot')
       .map((m) => ({
@@ -197,18 +207,23 @@ export async function POST(request: NextRequest) {
     try {
       const chat = model.startChat({ history: geminiHistory })
       const result = await chat.sendMessage(userMessage)
-      const answer = result.response.text()
+      const raw = result.response.text()
+      const structured = parseStructuredAnswer(raw)
 
       if (db) {
         await db.from('chat_messages').insert({
           session_id: sessionId,
           role: 'bot',
-          content: answer,
+          content: structured.explanation,
           is_flagged: false,
+          analogy: structured.analogy || null,
+          confidence_level: structured.confidence_level,
+          confidence_reason: structured.confidence_reason,
+          response_language: structured.language,
         })
       }
 
-      return NextResponse.json({ answer, flagged: false })
+      return NextResponse.json({ ...structured, flagged: false })
     } catch (err) {
       const fallback = 'Something went wrong generating that explanation. Please try again in a moment.'
       console.error('[/api/chat] Gemini followup error:', err)
